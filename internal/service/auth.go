@@ -114,6 +114,10 @@ func (s *AuthService) GenerateAPIKeys(ctx context.Context, userID uuid.UUID) (st
 	return apiKey, apiSecret, nil
 }
 
+func (s *AuthService) ListUsers(ctx context.Context) ([]model.User, error) {
+	return s.users.ListAll(ctx)
+}
+
 func (s *AuthService) generateJWT(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
 		"sub": userID.String(),

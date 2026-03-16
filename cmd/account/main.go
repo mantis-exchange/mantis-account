@@ -61,6 +61,12 @@ func main() {
 		internal.POST("/deduct-frozen", h.DeductFrozenBalance)
 	}
 
+	// Admin routes (internal, no auth)
+	admin := r.Group("/internal/v1")
+	{
+		admin.GET("/users", h.ListUsers)
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      r,

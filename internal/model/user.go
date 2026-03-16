@@ -73,6 +73,26 @@ func (r *UserRepo) GetByAPIKey(ctx context.Context, apiKey string) (*User, error
 	return u, nil
 }
 
+func (r *UserRepo) ListAll(ctx context.Context) ([]User, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, email, password_hash, totp_secret, api_key, api_secret, is_verified, created_at, updated_at
+		 FROM users ORDER BY created_at DESC LIMIT 100`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.TOTPSecret, &u.APIKey, &u.APISecret, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
 func (r *UserRepo) UpdateAPIKeys(ctx context.Context, id uuid.UUID, apiKey, apiSecret string) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE users SET api_key = $1, api_secret = $2, updated_at = $3 WHERE id = $4`,

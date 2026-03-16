@@ -159,6 +159,15 @@ func (h *Handler) CreditBalance(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+func (h *Handler) ListUsers(c *gin.Context) {
+	users, err := h.auth.ListUsers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
 func (h *Handler) DeductFrozenBalance(c *gin.Context) {
 	var req balanceOpReq
 	if err := c.ShouldBindJSON(&req); err != nil {
