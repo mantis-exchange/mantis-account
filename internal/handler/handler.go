@@ -89,3 +89,93 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	userID := c.GetString("user_id")
 	c.JSON(http.StatusOK, gin.H{"user_id": userID})
 }
+
+type balanceOpReq struct {
+	UserID string `json:"user_id" binding:"required"`
+	Asset  string `json:"asset" binding:"required"`
+	Amount string `json:"amount" binding:"required"`
+}
+
+func (h *Handler) FreezeBalance(c *gin.Context) {
+	var req balanceOpReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	if err := h.balance.Freeze(c.Request.Context(), userID, req.Asset, req.Amount); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) UnfreezeBalance(c *gin.Context) {
+	var req balanceOpReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	if err := h.balance.Unfreeze(c.Request.Context(), userID, req.Asset, req.Amount); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) CreditBalance(c *gin.Context) {
+	var req balanceOpReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	if err := h.balance.Credit(c.Request.Context(), userID, req.Asset, req.Amount); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) DeductFrozenBalance(c *gin.Context) {
+	var req balanceOpReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	if err := h.balance.DeductFrozen(c.Request.Context(), userID, req.Asset, req.Amount); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}

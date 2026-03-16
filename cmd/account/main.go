@@ -52,6 +52,15 @@ func main() {
 		auth.GET("/account/balances", h.GetBalances)
 	}
 
+	// Internal routes (no auth, service-to-service)
+	internal := r.Group("/internal/v1/balance")
+	{
+		internal.POST("/freeze", h.FreezeBalance)
+		internal.POST("/unfreeze", h.UnfreezeBalance)
+		internal.POST("/credit", h.CreditBalance)
+		internal.POST("/deduct-frozen", h.DeductFrozenBalance)
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
