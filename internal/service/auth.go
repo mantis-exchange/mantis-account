@@ -114,6 +114,10 @@ func (s *AuthService) GenerateAPIKeys(ctx context.Context, userID uuid.UUID) (st
 	return apiKey, apiSecret, nil
 }
 
+func (s *AuthService) LookupByAPIKey(ctx context.Context, apiKey string) (*model.User, error) {
+	return s.users.GetByAPIKey(ctx, apiKey)
+}
+
 func (s *AuthService) ListUsers(ctx context.Context) ([]model.User, error) {
 	return s.users.ListAll(ctx)
 }

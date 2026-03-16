@@ -90,6 +90,45 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user_id": userID})
 }
 
+func (h *Handler) GenerateAPIKeys(c *gin.Context) {
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	apiKey, apiSecret, err := h.auth.GenerateAPIKeys(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"api_key":    apiKey,
+		"api_secret": apiSecret,
+		"warning":    "Store the api_secret securely. It will not be shown again.",
+	})
+}
+
+func (h *Handler) LookupAPIKey(c *gin.Context) {
+	apiKey := c.Query("api_key")
+	if apiKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "api_key required"})
+		return
+	}
+
+	user, err := h.auth.LookupByAPIKey(c.Request.Context(), apiKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invalid api key"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":    user.ID,
+		"api_secret": user.APISecret,
+	})
+}
+
 type balanceOpReq struct {
 	UserID string `json:"user_id" binding:"required"`
 	Asset  string `json:"asset" binding:"required"`

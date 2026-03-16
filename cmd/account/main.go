@@ -59,6 +59,7 @@ func main() {
 	{
 		auth.GET("/account", h.GetProfile)
 		auth.GET("/account/balances", h.GetBalances)
+		auth.POST("/account/api-keys", h.GenerateAPIKeys)
 	}
 
 	// Internal routes (no auth, service-to-service)
@@ -68,6 +69,12 @@ func main() {
 		internal.POST("/unfreeze", h.UnfreezeBalance)
 		internal.POST("/credit", h.CreditBalance)
 		internal.POST("/deduct-frozen", h.DeductFrozenBalance)
+	}
+
+	// Internal API key lookup (service-to-service)
+	internalAPI := r.Group("/internal/v1")
+	{
+		internalAPI.GET("/api-key/lookup", h.LookupAPIKey)
 	}
 
 	// Admin routes (internal, no auth)
