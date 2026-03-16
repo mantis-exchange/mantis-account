@@ -40,6 +40,15 @@ func main() {
 
 	r := gin.Default()
 
+	// Health check with DB ping.
+	r.GET("/health", func(c *gin.Context) {
+		if err := pool.Ping(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	// Public routes
 	r.POST("/api/v1/account/register", h.Register)
 	r.POST("/api/v1/account/login", h.Login)
