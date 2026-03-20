@@ -64,6 +64,7 @@ func main() {
 		auth.POST("/account/totp/enable", h.EnableTOTP)
 		auth.POST("/account/totp/verify", h.VerifyTOTP)
 		auth.POST("/account/totp/disable", h.DisableTOTP)
+		auth.POST("/faucet", h.Faucet)
 	}
 
 	// Internal routes (no auth, service-to-service)

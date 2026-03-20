@@ -106,8 +106,28 @@ func (h *Handler) GetBalances(c *gin.Context) {
 }
 
 func (h *Handler) GetProfile(c *gin.Context) {
-	userID := c.GetString("user_id")
-	c.JSON(http.StatusOK, gin.H{"user_id": userID})
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	user, err := h.auth.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	hasTOTP, _ := h.auth.HasTOTP(c.Request.Context(), userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":     user.ID,
+		"email":       user.Email,
+		"is_verified": user.IsVerified,
+		"has_totp":    hasTOTP,
+		"has_api_key": user.APIKey != nil,
+		"created_at":  user.CreatedAt,
+	})
 }
 
 func (h *Handler) GenerateAPIKeys(c *gin.Context) {
@@ -297,6 +317,30 @@ func (h *Handler) DisableTOTP(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"disabled": true})
+}
+
+func (h *Handler) Faucet(c *gin.Context) {
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	// Credit testnet funds
+	assets := map[string]string{
+		"USDT": "10000",
+		"BTC":  "0.5",
+		"ETH":  "5",
+	}
+
+	for asset, amount := range assets {
+		_ = h.balance.Credit(c.Request.Context(), userID, asset, amount)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Testnet funds credited",
+		"assets":  assets,
+	})
 }
 
 func (h *Handler) DeductFrozenBalance(c *gin.Context) {
