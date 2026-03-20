@@ -93,6 +93,18 @@ func (r *UserRepo) ListAll(ctx context.Context) ([]User, error) {
 	return users, nil
 }
 
+func (r *UserRepo) UpdateTOTPSecret(ctx context.Context, id uuid.UUID, secret string) error {
+	var s *string
+	if secret != "" {
+		s = &secret
+	}
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET totp_secret = $1, updated_at = $2 WHERE id = $3`,
+		s, time.Now(), id,
+	)
+	return err
+}
+
 func (r *UserRepo) UpdateAPIKeys(ctx context.Context, id uuid.UUID, apiKey, apiSecret string) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE users SET api_key = $1, api_secret = $2, updated_at = $3 WHERE id = $4`,

@@ -36,7 +36,8 @@ func main() {
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret, expiry)
 	balanceService := service.NewBalanceService(balanceRepo)
 
-	h := handler.New(authService, balanceService)
+	notifyService := service.NewNotificationService()
+	h := handler.New(authService, balanceService, notifyService)
 
 	r := gin.Default()
 
@@ -60,6 +61,9 @@ func main() {
 		auth.GET("/account", h.GetProfile)
 		auth.GET("/account/balances", h.GetBalances)
 		auth.POST("/account/api-keys", h.GenerateAPIKeys)
+		auth.POST("/account/totp/enable", h.EnableTOTP)
+		auth.POST("/account/totp/verify", h.VerifyTOTP)
+		auth.POST("/account/totp/disable", h.DisableTOTP)
 	}
 
 	// Internal routes (no auth, service-to-service)

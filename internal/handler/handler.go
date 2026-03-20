@@ -12,10 +12,11 @@ import (
 type Handler struct {
 	auth    *service.AuthService
 	balance *service.BalanceService
+	notify  *service.NotificationService
 }
 
-func New(auth *service.AuthService, balance *service.BalanceService) *Handler {
-	return &Handler{auth: auth, balance: balance}
+func New(auth *service.AuthService, balance *service.BalanceService, notify *service.NotificationService) *Handler {
+	return &Handler{auth: auth, balance: balance, notify: notify}
 }
 
 type registerReq struct {
@@ -39,6 +40,8 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	h.notify.SendWelcome(req.Email)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"user_id": user.ID,
 		"email":   user.Email,
@@ -48,6 +51,7 @@ func (h *Handler) Register(c *gin.Context) {
 type loginReq struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
+	TOTPCode string `json:"totp_code"`
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -62,6 +66,22 @@ func (h *Handler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
+
+	// Check if TOTP is enabled
+	hasTOTP, _ := h.auth.HasTOTP(c.Request.Context(), resp.UserID)
+	if hasTOTP {
+		if req.TOTPCode == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "totp_required", "totp_required": true})
+			return
+		}
+		valid, _ := h.auth.VerifyTOTP(c.Request.Context(), resp.UserID, req.TOTPCode)
+		if !valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid TOTP code"})
+			return
+		}
+	}
+
+	h.notify.SendLoginAlert(req.Email, c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":   resp.Token,
@@ -205,6 +225,78 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
+type totpVerifyReq struct {
+	Code string `json:"code" binding:"required"`
+}
+
+func (h *Handler) EnableTOTP(c *gin.Context) {
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	secret, url, err := h.auth.EnableTOTP(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"secret":  secret,
+		"otpauth": url,
+		"message": "Scan the QR code or enter the secret in your authenticator app, then verify with /account/totp/verify",
+	})
+}
+
+func (h *Handler) VerifyTOTP(c *gin.Context) {
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	var req totpVerifyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	valid, err := h.auth.VerifyTOTP(c.Request.Context(), userID, req.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid TOTP code"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"verified": true})
+}
+
+func (h *Handler) DisableTOTP(c *gin.Context) {
+	userID, err := uuid.Parse(c.GetString("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+
+	var req totpVerifyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.auth.DisableTOTP(c.Request.Context(), userID, req.Code); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"disabled": true})
 }
 
 func (h *Handler) DeductFrozenBalance(c *gin.Context) {

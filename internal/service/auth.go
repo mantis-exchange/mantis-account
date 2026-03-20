@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mantis-exchange/mantis-account/internal/model"
@@ -120,6 +121,61 @@ func (s *AuthService) LookupByAPIKey(ctx context.Context, apiKey string) (*model
 
 func (s *AuthService) ListUsers(ctx context.Context) ([]model.User, error) {
 	return s.users.ListAll(ctx)
+}
+
+// EnableTOTP generates a new TOTP secret for the user.
+func (s *AuthService) EnableTOTP(ctx context.Context, userID uuid.UUID) (string, string, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found")
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Mantis Exchange",
+		AccountName: user.Email,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate TOTP: %w", err)
+	}
+
+	if err := s.users.UpdateTOTPSecret(ctx, userID, key.Secret()); err != nil {
+		return "", "", err
+	}
+
+	return key.Secret(), key.URL(), nil
+}
+
+// VerifyTOTP validates a TOTP code. Returns true if valid.
+func (s *AuthService) VerifyTOTP(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if user.TOTPSecret == nil || *user.TOTPSecret == "" {
+		return false, fmt.Errorf("TOTP not enabled")
+	}
+	return totp.Validate(code, *user.TOTPSecret), nil
+}
+
+// DisableTOTP removes TOTP from the user account.
+func (s *AuthService) DisableTOTP(ctx context.Context, userID uuid.UUID, code string) error {
+	valid, err := s.VerifyTOTP(ctx, userID, code)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return fmt.Errorf("invalid TOTP code")
+	}
+	return s.users.UpdateTOTPSecret(ctx, userID, "")
+}
+
+// HasTOTP checks if a user has TOTP enabled.
+func (s *AuthService) HasTOTP(ctx context.Context, userID uuid.UUID) (bool, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return user.TOTPSecret != nil && *user.TOTPSecret != "", nil
 }
 
 func (s *AuthService) generateJWT(userID uuid.UUID) (string, error) {
